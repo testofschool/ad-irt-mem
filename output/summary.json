@@ -1,0 +1,16 @@
+{
+  "irr_by_method": {
+    "adirt": 0.14463296648544782,
+    "fisher": 0.14363527007249993,
+    "recency": 0.14635380301257064,
+    "topk": 0.08725441743008693,
+    "uniform": 0.15064971555066195
+  },
+  "b_recovery_rho": 0.7436089608316339,
+  "lltm_r2": 0.14655054264793593,
+  "lltm_weight_rank_rho": 0.9999999999999998,
+  "lltm_b_pred_rho": 0.4457868740749742,
+  "wall_clock_seconds": 129.7,
+  "n_seeds": 5,
+  "query_splits": "train(0-39), CV(40-59), eval(60-79)"
+}
