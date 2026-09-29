@@ -147,7 +147,7 @@ def _distribute(cands, budget, weights):
         return {}
     if budget < n * 64:
         n_aff = int(budget // 64)
-        top = np.argsort(-weights)[:n_aff]
+        top = np.argsort(-weights, kind="stable")[:n_aff]  # stable: deterministic tie order across platforms (2026-09-29)
         surplus = budget - n_aff * 64
         sw = weights[top]; sw = sw/(sw.sum()+1e-12)
         return {cands[i]: np.clip(surplus*sw[idx]/336,0,1) for idx,i in enumerate(top)}

@@ -28,7 +28,7 @@ Recomputes all manuscript claims from packaged CSVs. No simulation needed.
 pip install -r requirements.txt
 # corrected code (default, --theta_mode own)
 PYTHONHASHSEED=0 python src/experiment.py --out_dir ./results/fixed_theta --seeds 5
-# original published run (reproduces output/*.csv byte-identically)
+# original published run (reproduces output/*.csv; see 'Tie order' below)
 PYTHONHASHSEED=0 python src/experiment.py --out_dir ./output --seeds 5 --theta_mode legacy
 ```
 
@@ -50,10 +50,18 @@ simulated historical rows (same observation protocol as training — 80 observed
 Exp. 1, sparsity-matched count in Exp. 2 — drawn from an independent RNG stream), with item
 parameters held fixed at the training estimates and the same learning rate / iterations / prior as
 `fit_2pl`. The training fit and all other random streams are untouched. `--theta_mode legacy`
-reproduces the original run (`output/*.csv` byte-identical, re-verified 2026-09-29);
+reproduces the original run (`output/*.csv` byte-identical on Linux x86_64, 2026-09-29; see *Tie order*);
 `--theta_mode oracle` uses the true simulated θ as an upper-bound sensitivity check only.
 Diagnostic: mean Spearman ρ between the θ actually used and the true θ for eval queries 60–79
 (5 seeds × gap {1,3,5}) is 0.079 under the bug and 0.938 after the fix.
+
+**Tie order (2026-09-29).** An external audit re-ran the code on macOS arm64 and got different
+Uniform results at budget 0.1 (25 rows of `exp1_main.csv`), which changed the AD-IRT-Mem vs Uniform
+win counts. Cause: `_distribute` picks the top `n_aff` candidates with `np.argsort(-weights)`, and
+under Uniform all weights are equal, so the pick depended on the platform's sort order for ties.
+The call now uses `np.argsort(-weights, kind="stable")`, which keeps ties in candidate order on every
+platform. On Linux x86_64 this reproduces the committed `output/*.csv` (legacy) and
+`results/fixed_theta/*.csv` (own) byte-for-byte, so no reported number changes; it is not yet re-run on macOS.
 
 **Corrected numbers** (Exp. 1, 125 seed×budget×gap cells; AD-IRT-Mem minus baseline).
 Original values are kept above and in `output/`; corrected outputs are in `results/fixed_theta/`
