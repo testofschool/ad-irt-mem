@@ -1,0 +1,183 @@
+{
+  "date": "2026-09-29",
+  "bug": "src/experiment.py used et[qi%40] (select_w: et[qi%len(et)]) so CV queries 40-59 used theta of training queries 0-19 and eval queries 60-79 used theta of training queries 20-39 (also in experiment_2).",
+  "fix": "--theta_mode own (new default): queries 40-79 get a theta estimated from their OWN simulated historical rows (same protocol as training: 80 observed chunks in exp1, sparsity-matched count in exp2; independent RNG seed offset +7_000_000; item params fixed at training estimates; same lr/iterations/prior as fit_2pl). Training fit and all other RNG streams unchanged.",
+  "commands": {
+    "original": "PYTHONHASHSEED=0 python src/experiment.py --out_dir <dir> --seeds 5 --theta_mode legacy  (exp1/exp2/exp3 CSVs byte-identical to committed output/)",
+    "fixed": "PYTHONHASHSEED=0 python src/experiment.py --out_dir <dir> --seeds 5 --theta_mode own  (CSVs copied to results/fixed_theta/)",
+    "oracle": "PYTHONHASHSEED=0 python src/experiment.py --out_dir <dir> --seeds 5 --theta_mode oracle  (true theta; sensitivity upper bound only)"
+  },
+  "original_legacy": {
+    "irr_by_method": {
+      "adirt": 0.14463296648544782,
+      "fisher": 0.14363527007249993,
+      "recency": 0.14635380301257064,
+      "topk": 0.08725441743008693,
+      "uniform": 0.15064971555066195
+    },
+    "b_recovery_rho": 0.7436089608316339,
+    "adirt_vs_uniform": {
+      "wins": 25,
+      "total": 125,
+      "win_pct": 20.0,
+      "mean_delta_irr": -0.006
+    },
+    "adirt_vs_recency": {
+      "wins": 50,
+      "total": 125,
+      "win_pct": 40.0,
+      "mean_delta_irr": -0.0017
+    },
+    "adirt_vs_topk": {
+      "wins": 123,
+      "total": 125,
+      "win_pct": 98.4,
+      "mean_delta_irr": 0.0574
+    },
+    "adirt_vs_fisher": {
+      "wins": 69,
+      "total": 125,
+      "win_pct": 55.2,
+      "mean_delta_irr": 0.001
+    },
+    "D1_b30_adirt_beats_uniform_seeds": 3,
+    "uniform_irr_b30": 0.1545,
+    "exp2_irr_by_method_sparsity": {
+      "adirt@0.0": 0.1693,
+      "adirt@0.2": 0.1649,
+      "adirt@0.4": 0.1741,
+      "adirt@0.6": 0.1713,
+      "adirt@0.8": 0.1704,
+      "adirt@0.9": 0.1678,
+      "fisher@0.0": 0.1665,
+      "fisher@0.2": 0.1645,
+      "fisher@0.4": 0.1743,
+      "fisher@0.6": 0.1702,
+      "fisher@0.8": 0.1705,
+      "fisher@0.9": 0.1684,
+      "uniform@0.0": 0.1705,
+      "uniform@0.2": 0.1657,
+      "uniform@0.4": 0.1739,
+      "uniform@0.6": 0.1715,
+      "uniform@0.8": 0.1702,
+      "uniform@0.9": 0.1679
+    }
+  },
+  "fixed_own_theta": {
+    "irr_by_method": {
+      "adirt": 0.1456729268519537,
+      "fisher": 0.14426517512658724,
+      "recency": 0.14635380301257064,
+      "topk": 0.08725441743008693,
+      "uniform": 0.15064971555066195
+    },
+    "b_recovery_rho": 0.7436089608316339,
+    "adirt_vs_uniform": {
+      "wins": 30,
+      "total": 125,
+      "win_pct": 24.0,
+      "mean_delta_irr": -0.005
+    },
+    "adirt_vs_recency": {
+      "wins": 62,
+      "total": 125,
+      "win_pct": 49.6,
+      "mean_delta_irr": -0.0007
+    },
+    "adirt_vs_topk": {
+      "wins": 124,
+      "total": 125,
+      "win_pct": 99.2,
+      "mean_delta_irr": 0.0584
+    },
+    "adirt_vs_fisher": {
+      "wins": 62,
+      "total": 125,
+      "win_pct": 49.6,
+      "mean_delta_irr": 0.0014
+    },
+    "D1_b30_adirt_beats_uniform_seeds": 4,
+    "uniform_irr_b30": 0.1545,
+    "exp2_irr_by_method_sparsity": {
+      "adirt@0.0": 0.1688,
+      "adirt@0.2": 0.1661,
+      "adirt@0.4": 0.1736,
+      "adirt@0.6": 0.1711,
+      "adirt@0.8": 0.1708,
+      "adirt@0.9": 0.1678,
+      "fisher@0.0": 0.1654,
+      "fisher@0.2": 0.1656,
+      "fisher@0.4": 0.1732,
+      "fisher@0.6": 0.1699,
+      "fisher@0.8": 0.171,
+      "fisher@0.9": 0.1683,
+      "uniform@0.0": 0.1705,
+      "uniform@0.2": 0.1657,
+      "uniform@0.4": 0.1739,
+      "uniform@0.6": 0.1715,
+      "uniform@0.8": 0.1702,
+      "uniform@0.9": 0.1679
+    }
+  },
+  "oracle_true_theta": {
+    "irr_by_method": {
+      "adirt": 0.14604812973025588,
+      "fisher": 0.14439198370170922,
+      "recency": 0.14635380301257064,
+      "topk": 0.08725441743008693,
+      "uniform": 0.15064971555066195
+    },
+    "b_recovery_rho": 0.7436089608316339,
+    "adirt_vs_uniform": {
+      "wins": 32,
+      "total": 125,
+      "win_pct": 25.6,
+      "mean_delta_irr": -0.0046
+    },
+    "adirt_vs_recency": {
+      "wins": 66,
+      "total": 125,
+      "win_pct": 52.8,
+      "mean_delta_irr": -0.0003
+    },
+    "adirt_vs_topk": {
+      "wins": 124,
+      "total": 125,
+      "win_pct": 99.2,
+      "mean_delta_irr": 0.0588
+    },
+    "adirt_vs_fisher": {
+      "wins": 72,
+      "total": 125,
+      "win_pct": 57.6,
+      "mean_delta_irr": 0.0017
+    },
+    "D1_b30_adirt_beats_uniform_seeds": 4,
+    "uniform_irr_b30": 0.1545,
+    "exp2_irr_by_method_sparsity": {
+      "adirt@0.0": 0.1687,
+      "adirt@0.2": 0.1658,
+      "adirt@0.4": 0.1722,
+      "adirt@0.6": 0.172,
+      "adirt@0.8": 0.17,
+      "adirt@0.9": 0.1676,
+      "fisher@0.0": 0.166,
+      "fisher@0.2": 0.1654,
+      "fisher@0.4": 0.1715,
+      "fisher@0.6": 0.1699,
+      "fisher@0.8": 0.1702,
+      "fisher@0.9": 0.1683,
+      "uniform@0.0": 0.1705,
+      "uniform@0.2": 0.1657,
+      "uniform@0.4": 0.1739,
+      "uniform@0.6": 0.1715,
+      "uniform@0.8": 0.1702,
+      "uniform@0.9": 0.1679
+    }
+  },
+  "diagnostic_mean_spearman_theta_used_vs_true_theta_eval_queries_60_79": {
+    "conditions": "5 seeds x difficulty_gap {1,3,5}",
+    "legacy": 0.079,
+    "own": 0.938
+  }
+}
