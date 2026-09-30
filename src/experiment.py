@@ -92,6 +92,51 @@ def fit_2pl(R, max_iter=200, lr=0.003):
     return theta, b, np.exp(np.clip(la, -2, 2))
 
 
+def fit_theta_fixed_items(R, est_b, est_a, max_iter=200, lr=0.003):
+    """[2026-09-29 FIX] Estimate theta for held-out queries from their OWN
+    historical rows, holding item parameters fixed at the training estimates.
+    Same update rule, learning rate, iteration count and theta prior as fit_2pl."""
+    mask = ~np.isnan(R)
+    theta = np.zeros(R.shape[0])
+    for _ in range(max_iter):
+        for i in range(R.shape[0]):
+            oj = np.where(mask[i])[0]
+            if len(oj)==0: continue
+            p = expit(est_a[oj]*(theta[i]-est_b[oj]))
+            theta[i] += lr*(np.sum(est_a[oj]*(R[i,oj]-p)) - 0.01*theta[i])
+    return theta
+
+
+THETA_MODE = "own"  # set from --theta_mode in main()
+
+def query_thetas(et, eb, ea, qs, mb, n_obs, rng_seed):
+    """[2026-09-29 FIX] Return a length-80 vector of per-query ability used by
+    Fisher / AD-IRT allocation, indexed by the query's own id.
+      legacy : original (buggy) behaviour, query qi uses et[qi % 40]
+               (CV 40-59 -> train 0-19, eval 60-79 -> train 20-39)
+      own    : queries 0-39 use their training estimate; queries 40-79 use a
+               theta estimated from their own simulated historical rows
+               (same observation protocol as training, independent RNG,
+               item params fixed at training estimates)
+      oracle : true simulated theta (upper-bound sensitivity check only)"""
+    n_q = qs.n_q
+    if THETA_MODE == "legacy":
+        return et[np.arange(n_q) % len(et)]
+    if THETA_MODE == "oracle":
+        return qs.theta.copy()
+    rng = np.random.RandomState(rng_seed)
+    held = np.arange(len(et), n_q)
+    hist = np.full((len(held), mb.N), np.nan)
+    for r, i in enumerate(held):
+        obs = rng.choice(mb.N, min(n_obs, mb.N), replace=False)
+        for j in obs:
+            hist[r, j] = 1.0 if rng.uniform() < qs.rel_p[i, j] else 0.0
+    th = np.empty(n_q)
+    th[:len(et)] = et
+    th[len(et):] = fit_theta_fixed_items(hist, eb, ea)
+    return th
+
+
 # ============================================================
 # 4. ALLOCATION STRATEGIES (with B<64n fix)
 # ============================================================
@@ -102,7 +147,7 @@ def _distribute(cands, budget, weights):
         return {}
     if budget < n * 64:
         n_aff = int(budget // 64)
-        top = np.argsort(-weights)[:n_aff]
+        top = np.argsort(-weights, kind="stable")[:n_aff]  # stable: deterministic tie order across platforms (2026-09-29)
         surplus = budget - n_aff * 64
         sw = weights[top]; sw = sw/(sw.sum()+1e-12)
         return {cands[i]: np.clip(surplus*sw[idx]/336,0,1) for idx,i in enumerate(top)}
@@ -180,7 +225,7 @@ def select_w(mb, qs, et, eb, ea, n_cand=25, budget=2500, seed=0):
                 rng=np.random.RandomState(seed*100000+qi*100+int((w+3)*10))
                 noisy=qs.rel_p[qi]+rng.normal(0,0.12,mb.N)
                 cands=np.argsort(-noisy)[:n_cand]
-                al=alloc_adirt(cands,budget,mb=mb,theta_i=et[qi%len(et)],
+                al=alloc_adirt(cands,budget,mb=mb,theta_i=et[qi],
                                est_b=eb,est_a=ea,w_param=w)
                 irrs.append(compute_irr(al,qi,mb,qs,rng))
             fs.append(np.mean(irrs))
@@ -220,7 +265,10 @@ def experiment_1(out, n_seeds=5):
             b_rho=spearmanr(mb.b[obs_items],eb[obs_items])[0] if len(obs_items)>10 else 0
 
             # [B3 FIX]: CV on queries 40-59
-            sel_w=select_w(mb,qs,et,eb,ea,seed=seed)
+            # [2026-09-29 FIX] per-query theta indexed by own query id
+            qth=query_thetas(et,eb,ea,qs,mb,n_obs=80,
+                             rng_seed=seed*1000+int(dgap*100)+7_000_000)
+            sel_w=select_w(mb,qs,qth,eb,ea,seed=seed)
 
             for bf in budgets:
                 budget=int(n_cand*400*bf)
@@ -230,7 +278,7 @@ def experiment_1(out, n_seeds=5):
                     rng_q=np.random.RandomState(seed*100000+qi+int(dgap*1000))
                     noisy=qs.rel_p[qi]+rng_q.normal(0,0.12,mb.N)
                     cands=np.argsort(-noisy)[:n_cand]
-                    ti=et[qi%40]
+                    ti=qth[qi]  # [2026-09-29 FIX] was et[qi%40]
                     allocs={
                         "uniform": alloc_uniform(cands,budget),
                         "recency": alloc_recency(cands,budget,mb=mb),
@@ -271,13 +319,15 @@ def experiment_2(out, n_seeds=5):
             et,eb,ea=fit_2pl(hist)
             obs_items=np.where(~np.isnan(hist).all(axis=0))[0]
             b_rho=spearmanr(mb.b[obs_items],eb[obs_items])[0] if len(obs_items)>10 else 0
-            sel_w=select_w(mb,qs,et,eb,ea,seed=seed)
+            qth=query_thetas(et,eb,ea,qs,mb,n_obs=max(5,int(mb.N*(1-sp)*0.2)),
+                             rng_seed=seed*2000+int(sp*100)+7_000_000)
+            sel_w=select_w(mb,qs,qth,eb,ea,seed=seed)
             for m in ["uniform","fisher","adirt"]:
                 irrs=[]
                 for qi in range(60,80):
                     rng_q=np.random.RandomState(seed*300000+qi+int(sp*1000))
                     noisy=qs.rel_p[qi]+rng_q.normal(0,0.12,mb.N)
-                    cands=np.argsort(-noisy)[:n_cand]; ti=et[qi%40]
+                    cands=np.argsort(-noisy)[:n_cand]; ti=qth[qi]  # [2026-09-29 FIX] was et[qi%40]
                     if m=="uniform": al=alloc_uniform(cands,budget)
                     elif m=="fisher": al=alloc_fisher(cands,budget,mb=mb,theta_i=ti,est_b=eb,est_a=ea)
                     else: al=alloc_adirt(cands,budget,mb=mb,theta_i=ti,est_b=eb,est_a=ea,w_param=sel_w)
@@ -434,7 +484,11 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--out_dir",default="./output")
     parser.add_argument("--seeds",type=int,default=5)
+    parser.add_argument("--theta_mode",choices=["own","legacy","oracle"],default="own",
+                        help="own (fixed, default) | legacy (original qi%%40 bug; reproduces "
+                             "committed output/) | oracle (true theta, sensitivity only)")
     args=parser.parse_args()
+    global THETA_MODE; THETA_MODE=args.theta_mode
     os.makedirs(args.out_dir,exist_ok=True)
     N=args.seeds
 
@@ -511,6 +565,7 @@ def main():
              "lltm_b_pred_rho":float(df3["b_pred_rho"].mean()),
              "wall_clock_seconds":round(elapsed,1),
              "n_seeds":N,
+             "theta_mode":THETA_MODE,
              "query_splits":"train(0-39), CV(40-59), eval(60-79)"}
     with open(os.path.join(args.out_dir,"summary.json"),"w") as f:
         json.dump(summary,f,indent=2)
